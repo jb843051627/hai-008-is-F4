@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('隐患整改申请逐级签批')"/>
+</head>
+<body class="pear-container">
+
+<!-- 一屏点算：已作废不参与统计；我的待签只数轮到我这层的 -->
+<div class="layui-card">
+    <div class="layui-card-body">
+        <div class="layui-row layui-col-space10">
+            <div class="layui-col-xs3">
+                <div class="layui-card" style="border-left:4px solid #9c27b0;">
+                    <div class="layui-card-header">我的待签</div>
+                    <div class="layui-card-body">
+                        <span id="st-todo" style="font-size:28px;color:#9c27b0;">0</span> 张
+                    </div>
+                </div>
+            </div>
+            <div class="layui-col-xs3">
+                <div class="layui-card" style="border-left:4px solid #FFB800;">
+                    <div class="layui-card-header">审批中</div>
+                    <div class="layui-card-body">
+                        <span id="st-running" style="font-size:28px;color:#FFB800;">0</span> 张
+                    </div>
+                </div>
+            </div>
+            <div class="layui-col-xs3">
+                <div class="layui-card" style="border-left:4px solid #1E9FFF;">
+                    <div class="layui-card-header">未提交(含退回补材料)</div>
+                    <div class="layui-card-body">
+                        <span id="st-draft" style="font-size:28px;color:#1E9FFF;">0</span> 张
+                    </div>
+                </div>
+            </div>
+            <div class="layui-col-xs3">
+                <div class="layui-card">
+                    <div class="layui-card-header">结案：通过 / 驳回</div>
+                    <div class="layui-card-body">
+                        <span style="font-size:22px;color:#5FB878;" id="st-passed">0</span>
+                        <span style="color:#888;"> / </span>
+                        <span style="font-size:22px;color:#FF5722;" id="st-rejected">0</span> 张
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="layui-card">
+    <div class="layui-card-body">
+        <form class="layui-form" action="">
+            <div class="layui-form-item">
+                <label class="layui-form-label">状态</label>
+                <div class="layui-input-inline">
+                    <select name="status" class="layui-input">
+                        <option value="">全部</option>
+                        <option value="0">未提交</option>
+                        <option value="1">审批中</option>
+                        <option value="2">已通过</option>
+                        <option value="3">已驳回</option>
+                        <option value="4">已作废</option>
+                    </select>
+                </div>
+                <label class="layui-form-label">申请单号</label>
+                <div class="layui-input-inline">
+                    <input name="applyNo" class="layui-input" placeholder="单号前缀">
+                </div>
+                <button class="pear-btn pear-btn-md pear-btn-primary" lay-submit lay-filter="ra-query">
+                    <i class="layui-icon layui-icon-search"></i> 查询
+                </button>
+                <button type="reset" class="pear-btn pear-btn-md">
+                    <i class="layui-icon layui-icon-refresh"></i> 重置
+                </button>
+                <button shiro:hasPermission="isRectApply:apply" type="button"
+                        class="pear-btn pear-btn-md pear-btn-success" style="margin-left:16px;" onclick="openDraft()">
+                    <i class="layui-icon layui-icon-add-1"></i> 起草整改申请
+                </button>
+                <button shiro:hasPermission="isRectApply:urge" type="button"
+                        class="pear-btn pear-btn-md pear-btn-warming" onclick="runUrge()">
+                    <i class="layui-icon layui-icon-notice"></i> 立即催办一轮
+                </button>
+                <button type="button" class="pear-btn pear-btn-md" onclick="loadScope('todo')">
+                    只看我的待签
+                </button>
+                <button type="button" class="pear-btn pear-btn-md" onclick="loadScope('applied')">
+                    我提交的
+                </button>
+                <button type="button" class="pear-btn pear-btn-md" onclick="loadScope('all')">
+                    全部台账
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="layui-card">
+    <div class="layui-card-body">
+        <table id="ra-table" lay-filter="ra-table"></table>
+    </div>
+</div>
+
+<script type="text/html" id="ra-status">
+    {{#  if(d.status===0){ }}<span class="layui-badge layui-bg-blue">未提交</span>
+    {{#  } else if(d.status===1){ }}<span class="layui-badge layui-bg-orange">审批中</span>
+    {{#  } else if(d.status===2){ }}<span class="layui-badge layui-bg-green">已通过</span>
+    {{#  } else if(d.status===3){ }}<span class="layui-badge layui-bg-red">已驳回</span>
+    {{#  } else if(d.status===4){ }}<span class="layui-badge layui-bg-gray">已作废</span>{{#  } }}
+</script>
+<script type="text/html" id="ra-level">
+    {{#  if(d.curLevelNo===null || d.curLevelNo===undefined){ }}<span style="color:#aaa;">—</span>
+    {{#  } else { }}第 {{d.curLevelNo}} 级{{#  } }}
+</script>
+<script type="text/html" id="ra-conclusion">
+    {{#  if(d.conclusion===1){ }}<span style="color:#5FB878;">通过</span>
+    {{#  } else if(d.conclusion===2){ }}<span style="color:#FF5722;">驳回</span>
+    {{#  } else { }}<span style="color:#aaa;">待结案</span>{{#  } }}
+</script>
+<script type="text/html" id="ra-bar">
+    <button shiro:hasPermission="isRectApply:list" class="pear-btn pear-btn-primary pear-btn-sm" lay-event="detail">单/意见</button>
+    {{#  if(d.status===1){ }}
+    <button shiro:hasPermission="isRectApply:sign" class="pear-btn pear-btn-warming pear-btn-sm" lay-event="sign">签收</button>
+    {{#  } }}
+    {{#  if(d.status===0){ }}
+    <button shiro:hasPermission="isRectApply:apply" class="pear-btn pear-btn-normal pear-btn-sm" lay-event="submit">提交</button>
+    <button shiro:hasPermission="isRectApply:apply" class="pear-btn pear-btn-danger pear-btn-sm" lay-event="withdraw">撤回</button>
+    {{#  } }}
+    {{#  if(d.status===2 || d.status===3){ }}
+    <button shiro:hasPermission="isRectApply:archive" class="pear-btn pear-btn-sm" lay-event="archive">归档作废</button>
+    {{#  } }}
+</script>
+
+<th:block th:include="include :: footer"/>
+<script th:inline="javascript">
+    layui.use(['table', 'form', 'jquery', 'layer'], function () {
+        let table = layui.table, form = layui.form, $ = layui.jquery, layer = layui.layer;
+        let MP = rootPath + "/isRectApply/";
+        // 启用层级链条（平台配置），转交时选目标级
+        let levels = [[${levels}]] || [];
+        let scope = 'all';
+
+        function levelName(no) {
+            for (let i = 0; i < levels.length; i++) { if (levels[i].levelNo === no) return levels[i].levelName; }
+            return '第' + no + '级';
+        }
+
+        function render(url, where) {
+            table.render({
+                elem: '#ra-table', url: url, method: 'get', where: where || {}, page: true, skin: 'line',
+                cols: [[
+                    {field: 'applyNo', title: '申请单号', width: 165},
+                    {field: 'hazardNo', title: '关联隐患', width: 130},
+                    {field: 'hazardLevel', title: '隐患级别', width: 90, align: 'center',
+                        templet: function (d) { return d.hazardLevel ? d.hazardLevel + '级' : '—'; }},
+                    {field: 'applicant', title: '申请人', width: 100},
+                    {field: 'submitTime', title: '提交时间', width: 165, align: 'center'},
+                    {field: 'curLevelNo', title: '当前待签层级', width: 150, align: 'center',
+                        templet: function (d) {
+                            if (d.curLevelNo === null || d.curLevelNo === undefined) return '—';
+                            return '第' + d.curLevelNo + '级 ' + levelName(d.curLevelNo) + '（第' + (d.roundNo||1) + '轮）';
+                        }},
+                    {field: 'status', title: '状态', width: 95, align: 'center', templet: '#ra-status'},
+                    {field: 'conclusion', title: '结论', width: 85, align: 'center', templet: '#ra-conclusion'},
+                    {field: 'closedTime', title: '结案时间', width: 165, align: 'center'},
+                    {title: '操作', width: 270, align: 'center', fixed: 'right', toolbar: '#ra-bar'}
+                ]]
+            });
+        }
+        render(MP + 'list');
+        refreshStats();
+
+        window.loadScope = function (s) {
+            scope = s;
+            if (s === 'todo') render(MP + 'myTodo');
+            else if (s === 'applied') render(MP + 'myApplied');
+            else render(MP + 'list');
+        };
+
+        form.on('submit(ra-query)', function (data) {
+            scope = 'all';
+            render(MP + 'list', data.field);
+            return false;
+        });
+
+        window.openDraft = function () {
+            layer.open({
+                type: 1, title: '起草隐患整改申请（提交前可撤回）', area: ['520px', '420px'],
+                content:
+                    '<form class="layui-form" style="padding:20px 10px 0 0;" id="draft-form">' +
+                    '  <div class="layui-form-item"><label class="layui-form-label">关联隐患ID</label>' +
+                    '    <div class="layui-input-block"><input name="hazardId" class="layui-input" placeholder="t_is_hazard 主键"></div></div>' +
+                    '  <div class="layui-form-item"><label class="layui-form-label">隐患级别</label>' +
+                    '    <div class="layui-input-block"><select name="hazardLevel"><option value="1">一级</option><option value="2">二级</option><option value="3">三级</option></select></div></div>' +
+                    '  <div class="layui-form-item"><label class="layui-form-label">申请事由</label>' +
+                    '    <div class="layui-input-block"><textarea name="remark" class="layui-textarea" placeholder="落单后隐患哪条/级别不再可改"></textarea></div></div>' +
+                    '</form>',
+                btn: ['存为未提交', '取消'],
+                yes: function (idx) {
+                    let f = {};
+                    $('#draft-form').serializeArray().forEach(function (p) { if (p.value !== '') f[p.name] = p.value; });
+                    $.post(MP + 'draft', f, function (r) {
+                        layer.msg(r.msg, {icon: r.code === 200 ? 1 : 2});
+                        if (r.code === 200) { layer.close(idx); reloadAll(); }
+                    });
+                }
+            });
+        };
+
+        window.runUrge = function () {
+            let loading = layer.load();
+            $.post(MP + 'urge', {}, function (r) {
+                layer.close(loading);
+                layer.alert(r.msg, {icon: r.code === 200 ? 1 : 2, title: '催办扫描'});
+            });
+        };
+
+        table.on('tool(ra-table)', function (obj) {
+            let d = obj.data;
+            if (obj.event === 'detail') {
+                $.get(MP + 'detail', {id: d.id}, function (r) {
+                    if (r.code !== 200) { layer.msg(r.msg, {icon: 2}); return; }
+                    let a = r.data.apply, signs = r.data.signs, urges = r.data.urges, cur = r.data.curLevel, html = '';
+                    html += '<div style="line-height:1.9;margin-bottom:8px;">'
+                        + '<b>' + a.applyNo + '</b>　<span id="d-status"></span><br>'
+                        + '关联隐患：' + (a.hazardNo || '') + '（' + (a.hazardLevel || '—') + '级）　申请人：' + a.applicant + '<br>'
+                        + '提交时间：' + (a.submitTime || '—') + '　当前待签：'
+                        + (a.curLevelNo ? ('第' + a.curLevelNo + '级 ' + levelName(a.curLevelNo)) : '—')
+                        + (cur ? ('　<b>该谁签：' + (cur.signerRoleName || ('角色'+cur.signerRoleId)) + '</b>') : '')
+                        + '　轮次：第' + (a.roundNo || 1) + '轮<br>'
+                        + '结案：' + (a.conclusion === 1 ? '通过' : a.conclusion === 2 ? '驳回' : '未结案')
+                        + '　结案时间：' + (a.closedTime || '—')
+                        + '</div><hr><b>逐级签署意见</b>'
+                        + '<table class="layui-table" style="margin:8px 0;font-size:12px;"><thead><tr>'
+                        + '<th>时刻</th><th>轮次/层级</th><th>动作</th><th>落笔者</th><th>原签署人/代办原因</th><th>意见</th></tr></thead><tbody>';
+                    signs.forEach(function (s) {
+                        html += '<tr><td>' + (s.signTime || '') + '</td>'
+                            + '<td>第' + (s.roundNo || '') + '轮 ' + (s.levelName || '—') + '</td>'
+                            + '<td>' + actName(s.action) + (s.targetLevelName ? ('→' + s.targetLevelName) : '') + '</td>'
+                            + '<td>' + (s.signer || '') + '</td>'
+                            + '<td>' + (s.agentFlag === 1
+                                ? ('原签署人 ' + (s.intendedSigner || '') + '<br><span style="color:#FF5722;">代办：' + (s.agentReason||'') + '</span>')
+                                : '本人') + '</td>'
+                            + '<td>' + (s.comment || '') + '</td></tr>';
+                    });
+                    if (!signs.length) { html += '<tr><td colspan="6">暂无签署记录</td></tr>'; }
+                    html += '</tbody></table><b>催办留痕</b>'
+                        + '<table class="layui-table" style="margin:8px 0;font-size:12px;"><thead><tr>'
+                        + '<th>催办时刻</th><th>卡住层级</th><th>已卡小时</th><th>话术</th></tr></thead><tbody>';
+                    urges.forEach(function (u) {
+                        html += '<tr><td>' + (u.urgedAt || '') + '</td><td>' + (u.levelName || '')
+                            + '</td><td>' + (u.overdueHours || '') + '</td><td>' + (u.detail || '') + '</td></tr>';
+                    });
+                    if (!urges.length) { html += '<tr><td colspan="4">暂无催办</td></tr>'; }
+                    html += '</tbody></table>';
+                    layer.open({type: 1, title: '申请单全貌与签署留痕', area: ['920px', '600px'], content: html});
+                });
+            } else if (obj.event === 'sign') {
+                openSign(d);
+            } else if (obj.event === 'submit') {
+                layer.prompt({title: '提交（补齐重提时填补齐说明，首轮可留空）', formType: 2, value: ''},
+                    function (note, idx) {
+                        $.post(MP + 'submit', {id: d.id, supplementNote: note}, function (r) {
+                            layer.close(idx);
+                            layer.msg(r.msg, {icon: r.code === 200 ? 1 : 2});
+                            if (r.code === 200) reloadAll();
+                        });
+                    });
+            } else if (obj.event === 'withdraw') {
+                layer.confirm('只在单子还没进任何一级签署前可撤回。确认撤回作废？', {icon: 3, title: '撤回作废'},
+                    function (idx) {
+                        $.post(MP + 'withdraw', {id: d.id}, function (r) {
+                            layer.close(idx);
+                            layer.msg(r.msg, {icon: r.code === 200 ? 1 : 2});
+                            if (r.code === 200) reloadAll();
+                        });
+                    });
+            } else if (obj.event === 'archive') {
+                layer.confirm('归档只翻"已作废"，结论与结案时间原样封死、谁都改不了。确认归档？',
+                    {icon: 3, title: '管理员归档'},
+                    function (idx) {
+                        $.post(MP + 'archive', {id: d.id}, function (r) {
+                            layer.close(idx);
+                            layer.msg(r.msg, {icon: r.code === 200 ? 1 : 2});
+                            if (r.code === 200) reloadAll();
+                        });
+                    });
+            }
+        });
+
+        function openSign(d) {
+            let opts = '';
+            levels.forEach(function (l) {
+                if (l.levelNo !== d.curLevelNo) opts += '<option value="' + l.levelNo + '">第' + l.levelNo + '级 ' + l.levelName + '</option>';
+            });
+            layer.open({
+                type: 1, title: '第' + d.curLevelNo + '级签收 ' + d.applyNo, area: ['560px', '520px'],
+                content:
+                    '<form class="layui-form" style="padding:20px 10px 0 0;" id="sign-form">' +
+                    '  <div class="layui-form-item"><label class="layui-form-label">动作</label>' +
+                    '    <div class="layui-input-block"><select name="action" lay-filter="sign-action-sel">' +
+                    '      <option value="PASS">通过（进下一级；末级通过即结案）</option>' +
+                    '      <option value="REJECT">驳回（直接结案为已驳回）</option>' +
+                    '      <option value="SUPPLEMENT">补充材料（退回申请人，重走第一级）</option>' +
+                    '      <option value="TRANSFER">转交他级</option>' +
+                    '    </select></div></div>' +
+                    '  <div class="layui-form-item" id="target-box" style="display:none;"><label class="layui-form-label">转交目标级</label>' +
+                    '    <div class="layui-input-block"><select name="targetLevelNo">' + opts + '</select></div></div>' +
+                    '  <div class="layui-form-item"><label class="layui-form-label">本级意见</label>' +
+                    '    <div class="layui-input-block"><textarea name="comment" class="layui-textarea" placeholder="必须写下本级意见；转交要把本级意见记全，不许只写转走了"></textarea></div></div>' +
+                    '  <hr><div class="layui-form-item"><label class="layui-form-label">代办(可空)</label>' +
+                    '    <div class="layui-input-block"><input name="intendedSigner" class="layui-input" placeholder="原签署人；留空=本人签收"></div></div>' +
+                    '  <div class="layui-form-item"><label class="layui-form-label">代办原因</label>' +
+                    '    <div class="layui-input-block"><input name="agentReason" class="layui-input" placeholder="代办必填；代办不改层级归属"></div></div>' +
+                    '</form>',
+                success: function () {
+                    form.render();
+                    form.on('select(sign-action-sel)', function (p) {
+                        $('#target-box').css('display', p.value === 'TRANSFER' ? '' : 'none');
+                    });
+                },
+                btn: ['确认签收', '取消'],
+                yes: function (idx) {
+                    let f = {};
+                    $('#sign-form').serializeArray().forEach(function (p) { if (p.value !== '') f[p.name] = p.value; });
+                    f.id = d.id;
+                    $.post(MP + 'sign', f, function (r) {
+                        layer.msg(r.msg, {icon: r.code === 200 ? 1 : 2});
+                        if (r.code === 200) { layer.close(idx); reloadAll(); }
+                    });
+                }
+            });
+        }
+
+        function actName(a) {
+            return {PASS:'通过', REJECT:'驳回', SUPPLEMENT:'补充材料', TRANSFER:'转交他级',
+                SUBMIT:'提交', RESUBMIT:'补齐重提', WITHDRAW:'撤回', ARCHIVE:'归档'}[a] || a;
+        }
+        function reloadAll() {
+            if (scope === 'todo') table.reload('ra-table'); else if (scope === 'applied') table.reload('ra-table');
+            else table.reload('ra-table');
+            refreshStats();
+        }
+        function refreshStats() {
+            $.get(MP + 'stats', {}, function (r) {
+                if (!r.data) return;
+                $('#st-todo').text(r.data.myTodo);
+                $('#st-running').text(r.data.running);
+                $('#st-draft').text(r.data.draft);
+                $('#st-passed').text(r.data.passed);
+                $('#st-rejected').text(r.data.rejected);
+            });
+        }
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('整改申请签批层级配置')"/>
+</head>
+<body class="pear-container">
+
+<div class="layui-card">
+    <div class="layui-card-body" style="color:#888;font-size:13px;">
+        层级次序由平台写死、不抄在申请单上：提交进最小号，通过进比它大的下一号，末级通过即结案。
+        每一级绑定一个签收角色——角色对不上，这层的单连看都看不到。停用一级前，挂在这级的在途单必须先走完。
+    </div>
+</div>
+
+<div class="layui-card">
+    <div class="layui-card-body">
+        <button shiro:hasPermission="isRectLevel:add"
+                class="pear-btn pear-btn-md pear-btn-success" onclick="openAdd()">
+            <i class="layui-icon layui-icon-add-1"></i> 登记一级
+        </button>
+    </div>
+</div>
+
+<div class="layui-card">
+    <div class="layui-card-body">
+        <table id="lv-table" lay-filter="lv-table"></table>
+    </div>
+</div>
+
+<script type="text/html" id="lv-status">
+    {{#  if(d.status===0){ }}<span class="layui-badge layui-bg-green">启用</span>
+    {{#  } else { }}<span class="layui-badge layui-bg-gray">停用</span>{{#  } }}
+</script>
+<script type="text/html" id="lv-bar">
+    {{#  if(d.status===0){ }}
+    <button shiro:hasPermission="isRectLevel:add" class="pear-btn pear-btn-warming pear-btn-sm" lay-event="retire">停用</button>
+    {{#  } }}
+</script>
+
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['table', 'jquery', 'layer'], function () {
+        let table = layui.table, $ = layui.jquery, layer = layui.layer;
+        let MP = rootPath + "/isRectLevel/";
+
+        table.render({
+            elem: '#lv-table',
+            url: MP + 'list',
+            method: 'get',
+            page: true,
+            skin: 'line',
+            cols: [[
+                {field: 'levelNo', title: '层级次序', width: 100, align: 'center', sort: true},
+                {field: 'levelName', title: '层级名', minWidth: 180},
+                {field: 'signerRoleId', title: '签收角色ID', width: 200, align: 'center'},
+                {field: 'signerRoleName', title: '签收角色名', width: 150},
+                {field: 'urgeHours', title: '卡办时限(小时)', width: 130, align: 'center'},
+                {field: 'status', title: '情形', width: 90, align: 'center', templet: '#lv-status'},
+                {field: 'remark', title: '备注', minWidth: 180},
+                {title: '操作', width: 100, align: 'center', fixed: 'right', toolbar: '#lv-bar'}
+            ]]
+        });
+
+        window.openAdd = function () {
+            layer.open({
+                type: 1, title: '登记一个签批层级（次序平台写死，不许重号）', area: ['520px', '480px'],
+                content:
+                    '<form class="layui-form" style="padding:20px 10px 0 0;" id="lv-form">' +
+                    '  <div class="layui-form-item"><label class="layui-form-label">层级次序</label>' +
+                    '    <div class="layui-input-block"><input name="levelNo" class="layui-input" placeholder="从1起，提交进最小号"></div></div>' +
+                    '  <div class="layui-form-item"><label class="layui-form-label">层级名</label>' +
+                    '    <div class="layui-input-block"><input name="levelName" class="layui-input" placeholder="如：安环科审核"></div></div>' +
+                    '  <div class="layui-form-item"><label class="layui-form-label">签收角色ID</label>' +
+                    '    <div class="layui-input-block"><input name="signerRoleId" class="layui-input" placeholder="t_sys_role 主键"></div></div>' +
+                    '  <div class="layui-form-item"><label class="layui-form-label">签收角色名</label>' +
+                    '    <div class="layui-input-block"><input name="signerRoleName" class="layui-input" placeholder="抄存，便于台账阅读"></div></div>' +
+                    '  <div class="layui-form-item"><label class="layui-form-label">卡办时限(小时)</label>' +
+                    '    <div class="layui-input-block"><input name="urgeHours" class="layui-input" value="48"></div></div>' +
+                    '  <div class="layui-form-item"><label class="layui-form-label">备注</label>' +
+                    '    <div class="layui-input-block"><input name="remark" class="layui-input"></div></div>' +
+                    '</form>',
+                btn: ['登记', '取消'],
+                yes: function (idx) {
+                    let f = {};
+                    $('#lv-form').serializeArray().forEach(function (p) { if (p.value !== '') f[p.name] = p.value; });
+                    $.post(MP + 'add', f, function (r) {
+                        layer.msg(r.msg, {icon: r.code === 200 ? 1 : 2});
+                        if (r.code === 200) { layer.close(idx); table.reload('lv-table'); }
+                    });
+                }
+            });
+        };
+
+        table.on('tool(lv-table)', function (obj) {
+            if (obj.event === 'retire') {
+                let d = obj.data;
+                layer.confirm('停用第' + d.levelNo + '级[' + d.levelName + ']？有在途单挂这级时会被拦下。',
+                    {icon: 3, title: '停用层级'},
+                    function (idx) {
+                        $.post(MP + 'retire', {id: d.id}, function (r) {
+                            layer.close(idx);
+                            layer.msg(r.msg, {icon: r.code === 200 ? 1 : 2});
+                            if (r.code === 200) table.reload('lv-table');
+                        });
+                    });
+            }
+        });
+    });
+</script>
+</body>
+</html>
