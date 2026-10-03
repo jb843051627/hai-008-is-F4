@@ -21,18 +21,32 @@ CREATE TABLE IF NOT EXISTS t_is_acc_flow (
 CREATE TABLE IF NOT EXISTS t_is_check_row (
   id bigint NOT NULL COMMENT '主键',
   batch_no varchar(64) DEFAULT NULL COMMENT '执法检查数据上传批次号',
-  row_no int DEFAULT NULL COMMENT '原表行次',
-  item_code varchar(64) DEFAULT NULL COMMENT '被校验出的数据项代号',
-  qty decimal(12,2) DEFAULT NULL COMMENT '本行检查得分',
+  row_no int DEFAULT NULL COMMENT '原表行次（表头不算，第一行数据=1；进门那一刻按原文件先后定死）',
+  site_no varchar(64) DEFAULT NULL COMMENT '企业编号（对 t_is_enterprise.site_no）',
+  check_date date DEFAULT NULL COMMENT '检查日期',
+  hazard_cnt int DEFAULT NULL COMMENT '隐患条数（单次检查上限100）',
+  item_code varchar(64) DEFAULT NULL COMMENT '被校验出的数据项类别码（入库行为空；退回填类别码）',
+  qty decimal(12,2) DEFAULT NULL COMMENT '本行检查得分（0..100，至多两位小数；并入行为空，得分只算一次）',
+  merge_into int DEFAULT NULL COMMENT '并入前头行行次（同企业两行并一条时，后头行指向前头行；正式记录只数前头行）',
   status int DEFAULT NULL COMMENT '行落地情形 0待核 1已入库 2退回',
   del_flag int DEFAULT '0' COMMENT '删除标记 0正常 1删除',
   create_by varchar(64) DEFAULT NULL COMMENT '创建者',
   create_time datetime DEFAULT NULL COMMENT '创建时间',
   update_by varchar(64) DEFAULT NULL COMMENT '更新者',
   update_time datetime DEFAULT NULL COMMENT '更新时间',
-  remark varchar(500) DEFAULT NULL COMMENT '备注',
-  PRIMARY KEY (id)
+  remark varchar(500) DEFAULT NULL COMMENT '备注（退回原由落这里，一行只一句，不许补第二句）',
+  PRIMARY KEY (id),
+  KEY idx_check_batch (batch_no, status),
+  KEY idx_check_site_date (site_no, check_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='执法检查记录导入核对行';
+
+-- 已建库补列（旧库逐句执行一次）：
+-- ALTER TABLE t_is_check_row ADD COLUMN site_no varchar(64) DEFAULT NULL COMMENT '企业编号' AFTER row_no;
+-- ALTER TABLE t_is_check_row ADD COLUMN check_date date DEFAULT NULL COMMENT '检查日期' AFTER site_no;
+-- ALTER TABLE t_is_check_row ADD COLUMN hazard_cnt int DEFAULT NULL COMMENT '隐患条数' AFTER check_date;
+-- ALTER TABLE t_is_check_row ADD COLUMN merge_into int DEFAULT NULL COMMENT '并入前头行行次' AFTER qty;
+-- ALTER TABLE t_is_check_row ADD KEY idx_check_batch (batch_no, status);
+-- ALTER TABLE t_is_check_row ADD KEY idx_check_site_date (site_no, check_date);
 
 CREATE TABLE IF NOT EXISTS t_is_enterprise (
   id bigint NOT NULL COMMENT '主键',

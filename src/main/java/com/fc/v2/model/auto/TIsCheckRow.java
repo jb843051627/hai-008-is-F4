@@ -42,15 +42,36 @@ public class TIsCheckRow implements Serializable {
     @ApiModelProperty(value = "原表行次")
     private Integer rowNo;
 
-    /** 被校验出的数据项代号 */
+    /** 企业编号（对企业底档 site_no） */
+    @TableField("site_no")
+    @ApiModelProperty(value = "企业编号")
+    private String siteNo;
+
+    /** 检查日期 */
+    @TableField("check_date")
+    @JsonFormat(pattern = "yyyy-MM-dd", timezone = "GMT+8")
+    @ApiModelProperty(value = "检查日期")
+    private Date checkDate;
+
+    /** 隐患条数 */
+    @TableField("hazard_cnt")
+    @ApiModelProperty(value = "隐患条数")
+    private Integer hazardCnt;
+
+    /** 被校验出的数据项类别码 */
     @TableField("item_code")
-    @ApiModelProperty(value = "被校验出的数据项代号")
+    @ApiModelProperty(value = "被校验出的数据项类别码")
     private String itemCode;
 
     /** 本行检查得分 */
     @TableField("qty")
     @ApiModelProperty(value = "本行检查得分")
     private BigDecimal qty;
+
+    /** 并入前头行行次（同企业两行并一条，后头行指向前头行） */
+    @TableField("merge_into")
+    @ApiModelProperty(value = "并入前头行行次")
+    private Integer mergeInto;
 
     /** 行落地情形 0待核 1已入库 2退回 */
     @TableField("status")
@@ -113,6 +134,30 @@ public class TIsCheckRow implements Serializable {
         this.rowNo = rowNo;
     }
 
+    public String getSiteNo() {
+        return siteNo;
+    }
+
+    public void setSiteNo(String siteNo) {
+        this.siteNo = siteNo;
+    }
+
+    public Date getCheckDate() {
+        return checkDate;
+    }
+
+    public void setCheckDate(Date checkDate) {
+        this.checkDate = checkDate;
+    }
+
+    public Integer getHazardCnt() {
+        return hazardCnt;
+    }
+
+    public void setHazardCnt(Integer hazardCnt) {
+        this.hazardCnt = hazardCnt;
+    }
+
     public String getItemCode() {
         return itemCode;
     }
@@ -127,6 +172,14 @@ public class TIsCheckRow implements Serializable {
 
     public void setQty(BigDecimal qty) {
         this.qty = qty;
+    }
+
+    public Integer getMergeInto() {
+        return mergeInto;
+    }
+
+    public void setMergeInto(Integer mergeInto) {
+        this.mergeInto = mergeInto;
     }
 
     public Integer getStatus() {
