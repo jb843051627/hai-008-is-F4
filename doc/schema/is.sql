@@ -18,21 +18,55 @@ CREATE TABLE IF NOT EXISTS t_is_acc_flow (
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='事故报告调查处置单';
 
+-- 整批导入核对行：一行归一行验、一行归一行落。行次 row_no 进门那一刻按原文件先后记下，
+-- 表头不算行、第一条数据从 1 起，之后谁查被退的行都照着这个号定位原表，不许重排。
+-- status 只由后台逐行处理方法落：0待处理 1已入库 2驳回；同企业跨行合并时 merged_row_no 记被并掉的那几行，
+-- 合并后只算一次得分、行次认前头那条（被并行不另落库）。驳回行 item_code 记数据项类别码、remark 记一句原由，
+-- 原由一经落库不许补第二句。
 CREATE TABLE IF NOT EXISTS t_is_check_row (
   id bigint NOT NULL COMMENT '主键',
   batch_no varchar(64) DEFAULT NULL COMMENT '执法检查数据上传批次号',
-  row_no int DEFAULT NULL COMMENT '原表行次',
-  item_code varchar(64) DEFAULT NULL COMMENT '被校验出的数据项代号',
+  row_no int DEFAULT NULL COMMENT '原表行次（进门按原文件先后记，表头不算，首条数据为1）',
+  item_code varchar(64) DEFAULT NULL COMMENT '被校验出的数据项类别码（驳回行必填；已入库行为空）',
+  site_no varchar(64) DEFAULT NULL COMMENT '被查企业编号（照查企业底档）',
+  check_time datetime DEFAULT NULL COMMENT '检查时间（合法行入库；格式不像样的驳回不落）',
+  hazard_cnt int DEFAULT NULL COMMENT '隐患条数（不得超单条上限）',
+  merged_row_no varchar(128) DEFAULT NULL COMMENT '并入本行的后续同企业行次清单（逗号分隔，仅合并头行有值）',
+  merge_head_row_no int DEFAULT NULL COMMENT '本行被并入的前头同企业行次（非空=被并行，得分不另计、不单列正式记录）',
   qty decimal(12,2) DEFAULT NULL COMMENT '本行检查得分',
-  status int DEFAULT NULL COMMENT '行落地情形 0待核 1已入库 2退回',
+  status int DEFAULT NULL COMMENT '行落地情形 0待处理 1已入库 2驳回',
   del_flag int DEFAULT '0' COMMENT '删除标记 0正常 1删除',
   create_by varchar(64) DEFAULT NULL COMMENT '创建者',
   create_time datetime DEFAULT NULL COMMENT '创建时间',
   update_by varchar(64) DEFAULT NULL COMMENT '更新者',
   update_time datetime DEFAULT NULL COMMENT '更新时间',
-  remark varchar(500) DEFAULT NULL COMMENT '备注',
-  PRIMARY KEY (id)
+  remark varchar(500) DEFAULT NULL COMMENT '备注（驳回原由落这里，一句写死不再补）',
+  PRIMARY KEY (id),
+  KEY idx_row_batch (batch_no, status),
+  KEY idx_row_check_time (check_time),
+  KEY idx_row_site (site_no)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='执法检查记录导入核对行';
+
+-- 批次登记头：一批进门先登一个批次号统住全批。batch_no 唯一——同号二次上传只留头一遍，
+-- 后到的不许覆盖先进来的那批。回执三数（总数/入库数/驳回数）在同一事务里逐行点算回写，
+-- 进+退必须等于总；空批 received_flag 照落但 receipt_note 绝不许写"已核讫"。
+CREATE TABLE IF NOT EXISTS t_is_check_batch (
+  id bigint NOT NULL COMMENT '主键',
+  batch_no varchar(64) DEFAULT NULL COMMENT '上传批次号（全库唯一，二次上传只认头一遍）',
+  total_cnt int DEFAULT '0' COMMENT '全批行数（以库里逐行点算为准）',
+  stored_cnt int DEFAULT '0' COMMENT '已入库行数',
+  rejected_cnt int DEFAULT '0' COMMENT '驳回行数（stored+rejected 必须等于 total）',
+  receipt_note varchar(255) DEFAULT NULL COMMENT '回执话术（空批不写已核讫）',
+  source_file varchar(255) DEFAULT NULL COMMENT '原文件名（备查）',
+  received_at datetime DEFAULT NULL COMMENT '进门登记时刻',
+  del_flag int DEFAULT '0' COMMENT '删除标记 0正常 1删除',
+  create_by varchar(64) DEFAULT NULL COMMENT '创建者',
+  create_time datetime DEFAULT NULL COMMENT '创建时间',
+  update_by varchar(64) DEFAULT NULL COMMENT '更新者',
+  update_time datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_check_batch_no (batch_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='执法检查数据上传批次登记';
 
 CREATE TABLE IF NOT EXISTS t_is_enterprise (
   id bigint NOT NULL COMMENT '主键',

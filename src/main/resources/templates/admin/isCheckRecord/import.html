@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('执法检查记录整批导入')"/>
+</head>
+<body class="pear-container">
+
+<!-- 口径牌：今年走整批导入，一行一行验、一行一行入库；哪行有毛病照原表行号定位。 -->
+<div class="layui-card">
+    <div class="layui-card-header">执法检查记录整批导入</div>
+    <div class="layui-card-body">
+        <form class="layui-form" action="">
+            <div class="layui-form-item">
+                <label class="layui-form-label">批次号</label>
+                <div class="layui-input-inline" style="width:260px;">
+                    <input id="batch-no" name="batchNo" class="layui-input" autocomplete="off"
+                           placeholder="一批一个号，二次上传只认头一遍">
+                </div>
+                <label class="layui-form-label">检查日期</label>
+                <div class="layui-input-inline" style="width:170px;">
+                    <input id="query-date" name="checkDate" class="layui-input" autocomplete="off" placeholder="按日查正式记录">
+                </div>
+                <label class="layui-form-label">企业编号</label>
+                <div class="layui-input-inline" style="width:170px;">
+                    <input id="query-site" name="siteNo" class="layui-input" autocomplete="off" placeholder="企业编号">
+                </div>
+                <button class="pear-btn pear-btn-sm" lay-submit lay-filter="record-query">查正式记录</button>
+                <button type="button" class="pear-btn pear-btn-sm pear-btn-warming" id="btn-errors">查本批错误清单</button>
+            </div>
+            <div class="layui-form-item">
+                <div class="layui-input-block">
+                    <button type="button" class="pear-btn pear-btn-primary" id="btn-upload">
+                        <i class="layui-icon layui-icon-upload"></i> 选 UTF-8 的 CSV 整批上传
+                    </button>
+                    <span class="layui-badge layui-bg-gray" style="margin-left:10px;">
+                        列次序：企业编号,检查时间,隐患条数,本行得分；表头行不算数，第一条数据为第 1 行
+                    </span>
+                    <span class="layui-badge layui-bg-orange" style="margin-left:6px;">GBK 请先另存为 UTF-8</span>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 回执三个数：全批/入库/驳回，入库+驳回=全批；数全以后台逐行处理方法回执为准，本页不加行 -->
+<div class="layui-row layui-col-space10">
+    <div class="layui-col-xs3">
+        <div class="layui-card" style="border-left:4px solid #1E9FFF;">
+            <div class="layui-card-header">全批行数</div>
+            <div class="layui-card-body"><span id="cnt-total" style="font-size:28px;color:#1E9FFF;">—</span> 行</div>
+        </div>
+    </div>
+    <div class="layui-col-xs3">
+        <div class="layui-card" style="border-left:4px solid #5FB878;">
+            <div class="layui-card-header">已入库</div>
+            <div class="layui-card-body"><span id="cnt-stored" style="font-size:28px;color:#5FB878;">—</span> 行
+                <span id="cnt-record" class="layui-badge layui-bg-green" style="display:none;"></span></div>
+        </div>
+    </div>
+    <div class="layui-col-xs3">
+        <div class="layui-card" style="border-left:4px solid #FF5722;">
+            <div class="layui-card-header">驳回</div>
+            <div class="layui-card-body"><span id="cnt-rejected" style="font-size:28px;color:#FF5722;">—</span> 行</div>
+        </div>
+    </div>
+    <div class="layui-col-xs3">
+        <div class="layui-card">
+            <div class="layui-card-header">批次号 / 进门结果</div>
+            <div class="layui-card-body">
+                <div id="cnt-batch" style="font-weight:bold;">—</div>
+                <div id="cnt-outcome" style="font-size:12px;color:#999;margin-top:4px;">未上传</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="layui-card">
+    <div class="layui-card-header">回执说明</div>
+    <div class="layui-card-body">
+        <blockquote class="layui-elem-quote" id="receipt-note" style="font-size:13px;">
+            一批进门先登记批次号；验过没毛病的直接成正式检查记录，哪行没过照错误清单原表行号改妥，另起批次号重传。
+        </blockquote>
+    </div>
+</div>
+
+<!-- 错误清单：行号照原表逐行对，当场标红 -->
+<div class="layui-card">
+    <div class="layui-card-header">错误清单（行号＋类别＋缘由，照号回原表定位）</div>
+    <div class="layui-card-body">
+        <table class="layui-table" id="error-table" style="margin:0;">
+            <thead>
+            <tr><th style="width:100px;">原表行号</th><th style="width:140px;">类别</th><th>缘由</th></tr>
+            </thead>
+            <tbody id="error-body">
+            <tr><td colspan="3" style="color:#999;">暂无——上传后驳回行在此逐行标红</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 正式检查记录：同企业横跨两行的并一条，得分只算一次 -->
+<div class="layui-card">
+    <div class="layui-card-header">正式检查记录（按批次号 / 检查日期 / 企业编号查得回；同企业并记后每企业一条）</div>
+    <div class="layui-card-body">
+        <table class="layui-table" id="record-table" lay-filter="record-table" lay-size="sm"></table>
+    </div>
+</div>
+
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['table', 'form', 'jquery', 'layer', 'upload', 'laydate'], function () {
+        let table = layui.table, form = layui.form, $ = layui.jquery,
+            layer = layui.layer, upload = layui.upload, laydate = layui.laydate;
+        let MP = rootPath + "/IsCheckRecordController/";
+
+        laydate.render({elem: '#query-date'});
+
+        table.render({
+            elem: '#record-table',
+            url: MP + 'records',
+            method: 'get',
+            page: true,
+            skin: 'line',
+            text: {none: '暂无正式检查记录'},
+            cols: [[
+                {field: 'batchNo', title: '批次号', width: 170},
+                {field: 'rowNo', title: '并记行次', width: 90, align: 'center'},
+                {field: 'siteNo', title: '企业编号', width: 110},
+                {field: 'checkTime', title: '检查时间', width: 170, align: 'center'},
+                {field: 'hazardCnt', title: '隐患条数', width: 90, align: 'center'},
+                {field: 'qty', title: '得分（只算一次）', width: 120, align: 'right'},
+                {field: 'mergedRowNo', title: '并入的原表行', width: 130, align: 'center',
+                    templet: function (d) { return d.mergedRowNo ? '第 ' + d.mergedRowNo + ' 行' : '—'; }}
+            ]]
+        });
+
+        form.on('submit(record-query)', function (data) {
+            table.reload('record-table', {
+                where: {batchNo: data.field.batchNo, checkDate: data.field.checkDate, siteNo: data.field.siteNo},
+                page: {curr: 1}
+            });
+            return false;
+        });
+
+        $('#btn-errors').on('click', function () {
+            let no = $('#batch-no').val().trim();
+            if (!no) { layer.msg('先填批次号再查错误清单', {icon: 2}); return; }
+            $.get(MP + 'errors', {batchNo: no}, function (r) {
+                if (r.code !== 200) { layer.msg(r.msg, {icon: 2}); return; }
+                renderErrors(r.data || []);
+            });
+        });
+
+        function renderErrors(errors) {
+            let $tb = $('#error-body').empty();
+            if (!errors.length) {
+                $tb.append('<tr><td colspan="3" style="color:#5FB878;">该批没有驳回行（空批也会如实显示 0 行进 0 行退，不算已核讫）</td></tr>');
+                return;
+            }
+            errors.forEach(function (e) {
+                // 当场标红：整行红底，行号一眼照着回原表找
+                let $tr = $(
+                    '<tr style="background:#fff2f0;color:#a8071a;font-weight:600;">' +
+                    '<td>第 ' + e.rowNo + ' 行</td><td></td><td></td></tr>');
+                $tr.find('td').eq(1).text(e.itemCode || '');
+                $tr.find('td').eq(2).text(e.reason || '');
+                $tb.append($tr);
+            });
+        }
+
+        function fillReceipt(d, note) {
+            $('#cnt-total').text(d.total);
+            $('#cnt-stored').text(d.stored);
+            $('#cnt-rejected').text(d.rejected);
+            $('#cnt-batch').text(d.batchNo || '—');
+            let outcomeText = {
+                ACCEPTED: '已逐行处理',
+                DUPLICATE: '重复批次：库里只留头一遍，本次一行未写',
+                OVER_LIMIT: '超单批上限：整批退回、一行未留'
+            }[d.outcome] || d.outcome;
+            $('#cnt-outcome').text(outcomeText);
+            $('#receipt-note').text(note || '');
+            if (d.mergedCnt > 0) {
+                $('#cnt-record').show().text('正式记录 ' + d.recordCnt + ' 条，并记 ' + d.mergedCnt + ' 行');
+            } else {
+                $('#cnt-record').hide();
+            }
+            // 三数当场对账：入库 + 驳回 不等于 全批，按对不上挑明
+            if (d.stored + d.rejected !== d.total) {
+                layer.alert('回执三数对不上：' + d.stored + '+' + d.rejected + '≠' + d.total, {icon: 2});
+            }
+            renderErrors(d.errors || []);
+        }
+
+        // 同名字段 batchNo 要随表单一起 POST，layui upload 用 data 带
+        upload.render({
+            elem: '#btn-upload',
+            url: MP + 'upload',
+            field: 'file',
+            accept: 'file',
+            exts: 'csv|txt',
+            data: function () { return {batchNo: $('#batch-no').val().trim()}; },
+            before: function () {
+                if (!$('#batch-no').val().trim()) {
+                    layer.msg('先填批次号：一批进门先登记批次号统住全批', {icon: 2});
+                    return false;
+                }
+                layer.load(2);
+            },
+            done: function (r) {
+                layer.closeAll('loading');
+                if (r.code !== 200) {
+                    // 编码/格式提示是给人看的原话，直接摆，不弹堆栈
+                    layer.alert(r.msg, {title: '这批没进门', icon: 2});
+                    return;
+                }
+                layer.msg(r.msg, {icon: 1, time: 2500});
+                fillReceipt(r.data, r.msg);
+                table.reload('record-table', {where: {batchNo: r.data.batchNo}, page: {curr: 1}});
+            },
+            error: function () {
+                layer.closeAll('loading');
+                layer.msg('网络异常，未收到回执，请用同批次号查询确认库里没写半截', {icon: 2});
+            }
+        });
+    });
+</script>
+</body>
+</html>

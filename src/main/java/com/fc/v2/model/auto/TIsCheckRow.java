@@ -42,19 +42,45 @@ public class TIsCheckRow implements Serializable {
     @ApiModelProperty(value = "原表行次")
     private Integer rowNo;
 
-    /** 被校验出的数据项代号 */
+    /** 被校验出的数据项类别码（驳回行必填，已入库行为空） */
     @TableField("item_code")
-    @ApiModelProperty(value = "被校验出的数据项代号")
+    @ApiModelProperty(value = "被校验出的数据项类别码")
     private String itemCode;
+
+    /** 被查企业编号（照查企业底档） */
+    @TableField("site_no")
+    @ApiModelProperty(value = "被查企业编号")
+    private String siteNo;
+
+    /** 检查时间 */
+    @TableField("check_time")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    @ApiModelProperty(value = "检查时间")
+    private Date checkTime;
+
+    /** 隐患条数 */
+    @TableField("hazard_cnt")
+    @ApiModelProperty(value = "隐患条数")
+    private Integer hazardCnt;
+
+    /** 并入本行的后续同企业行次清单（逗号分隔，仅合并头行有值） */
+    @TableField("merged_row_no")
+    @ApiModelProperty(value = "并入本行的后续同企业行次清单")
+    private String mergedRowNo;
+
+    /** 本行被并入的前头同企业行次（非空=被并行，得分不另计、不单列正式记录） */
+    @TableField("merge_head_row_no")
+    @ApiModelProperty(value = "本行被并入的前头同企业行次")
+    private Integer mergeHeadRowNo;
 
     /** 本行检查得分 */
     @TableField("qty")
     @ApiModelProperty(value = "本行检查得分")
     private BigDecimal qty;
 
-    /** 行落地情形 0待核 1已入库 2退回 */
+    /** 行落地情形 0待处理 1已入库 2驳回 */
     @TableField("status")
-    @ApiModelProperty(value = "行落地情形 0待核 1已入库 2退回")
+    @ApiModelProperty(value = "行落地情形 0待处理 1已入库 2驳回")
     private Integer status;
 
     /** 删除标记 0正常 1删除 */
@@ -119,6 +145,46 @@ public class TIsCheckRow implements Serializable {
 
     public void setItemCode(String itemCode) {
         this.itemCode = itemCode;
+    }
+
+    public String getSiteNo() {
+        return siteNo;
+    }
+
+    public void setSiteNo(String siteNo) {
+        this.siteNo = siteNo;
+    }
+
+    public Date getCheckTime() {
+        return checkTime;
+    }
+
+    public void setCheckTime(Date checkTime) {
+        this.checkTime = checkTime;
+    }
+
+    public Integer getHazardCnt() {
+        return hazardCnt;
+    }
+
+    public void setHazardCnt(Integer hazardCnt) {
+        this.hazardCnt = hazardCnt;
+    }
+
+    public String getMergedRowNo() {
+        return mergedRowNo;
+    }
+
+    public void setMergedRowNo(String mergedRowNo) {
+        this.mergedRowNo = mergedRowNo;
+    }
+
+    public Integer getMergeHeadRowNo() {
+        return mergeHeadRowNo;
+    }
+
+    public void setMergeHeadRowNo(Integer mergeHeadRowNo) {
+        this.mergeHeadRowNo = mergeHeadRowNo;
     }
 
     public BigDecimal getQty() {
